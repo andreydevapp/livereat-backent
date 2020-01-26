@@ -1,0 +1,30 @@
+npm init
+npm install express
+npm install cors
+npm install body-parser
+npm install -g typescript
+tsc --init
+npm install -g nodemon
+npm install mongoose
+npm install jsonwebtoken
+npm install multer
+npm install uuid
+npm install bcrypt-nodejs
+
+npm install socket.io
+
+
+npm install @types/express
+npm install @types/cors 
+npm install @types/mongoose
+npm install @types/jsonwebtoken
+npm install @types/multer
+npm install @types/uuid
+npm install @types/bcrypt-nodejs
+npm install @types/socket.io
+
+para ejecutar el modo watch en el server
+tsc -w
+
+ejecutar el server
+nodemon dist/
