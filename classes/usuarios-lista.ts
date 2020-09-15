@@ -30,7 +30,7 @@ export class UsuariosLista {
             if ( usuario.id === id ) {
                 usuario.userId = newId;
                 usuario.nombre = nombre;
-                usuario.imgenPerfil = pathImg;
+                usuario.imagenPerfil = pathImg;
                 usuario.tipoUsuario = opc;
                 break;
             }
@@ -46,7 +46,7 @@ export class UsuariosLista {
         for( let usuario of this.lista ) {
 
             if (usuario.userId === id) {
-                usuario.imgenPerfil = imgPath;
+                usuario.imagenPerfil = imgPath;
                 break;
             }
 
@@ -67,13 +67,13 @@ export class UsuariosLista {
     // Obtener un usuario por el id del socket
     public getUsuario( id: string ) {
         return this.lista.find( usuario => usuario.id === id );
-    }
-
-    
+    } 
 
     //obtener un usuario por el id del User
     public getUsuarioByIdUser( id: string ) {
-        return this.lista.find( usuario => usuario.userId === id );
+        return new Promise(resolve => {
+            resolve(this.lista.find( usuario => usuario.userId === id ));
+        });
     }
 
     // Obtener usuario en una sala en particular

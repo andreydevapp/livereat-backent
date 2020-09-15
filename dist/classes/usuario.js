@@ -6,7 +6,7 @@ class Usuario {
         this.userId = 'sin-id';
         this.nombre = 'sin-nombre';
         this.sala = 'sin-sala';
-        this.imgenPerfil = 'sin-foto';
+        this.imagenPerfil = 'sin-foto';
         this.tipoUsuario = 'sin-tipo';
     }
 }

@@ -5,7 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const autenticacion_1 = require("../controller/autenticacion");
+const autenticacion_1 = require("../controller/client/autenticacion");
 const imagenDeUsuario_1 = __importDefault(require("../libs/imagenDeUsuario"));
 const router = express_1.Router();
 var token2 = '';

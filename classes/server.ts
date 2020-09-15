@@ -21,16 +21,28 @@ export default class Server {
     private constructor() {
  
         this.app = express();
+
+        //coneccion a base de datos
+        // const MONGO_URI = 'mongodb://localhost/dblivereat';
+
+        // mongoose.set('useFindAndModify',true);
+        // mongoose.connect(MONGO_URI || process.env.MONGDB_URL, {
+        //     useNewUrlParser:true,
+        //     useCreateIndex:true
+        // })
+        // .then(DB => console.log('db is connected'));
+        //-------------------------- 
+
  
         //coneccion a base de datos
-        const MONGO_URI = 'mongodb+srv://teytech:Fail0412*@cluster0-hw8sk.mongodb.net/test?retryWrites=true&w=majority';
+         const MONGO_URI = 'mongodb+srv://teytech:Fail0412*@cluster0-hw8sk.mongodb.net/test?authSource=admin&replicaSet=Cluster0-shard-0&w=majority&readPreference=primary&appname=MongoDB%20Compass%20Community&retryWrites=true&ssl=true';
 
-        mongoose.set('useFindAndModify',true);
-        mongoose.connect(MONGO_URI || process.env.MONGDB_URL, {
-            useNewUrlParser:true,
-            useCreateIndex:true
-        })   
-        .then(DB => console.log('db is connected'));
+         mongoose.set('useFindAndModify',true);
+         mongoose.connect(MONGO_URI || process.env.MONGDB_URL, {
+             useNewUrlParser:true,
+             useCreateIndex:true
+         })   
+         .then(DB => console.log('db is connected'));
         //-------------------------- 
 
         this.port = SERVER_PORT;
@@ -61,6 +73,23 @@ export default class Server {
             // Configurar usuario
             socket.configurarUsuario( cliente, this.io );
 
+            // pedidos
+            socket.enviarCantiPedidos(cliente, this.io);
+
+            //Validar si el usuario esta en linea
+            socket.usuarioEnLinea(cliente,this.io);
+
+            // Mensajes
+            socket.mensaje( cliente, this.io );  
+            
+            //obtener negocios
+            socket.obtenerNegocios(cliente, this.io);
+
+            //marcar vistos
+            socket.marcarVisto(cliente, this.io);
+
+            socket.obtenerUsuarios(cliente,this.io);
+            
             /*
             
 

@@ -21,7 +21,7 @@ class UsuariosLista {
             if (usuario.id === id) {
                 usuario.userId = newId;
                 usuario.nombre = nombre;
-                usuario.imgenPerfil = pathImg;
+                usuario.imagenPerfil = pathImg;
                 usuario.tipoUsuario = opc;
                 break;
             }
@@ -32,7 +32,7 @@ class UsuariosLista {
     actualizarFotoDeperfil(id, imgPath) {
         for (let usuario of this.lista) {
             if (usuario.userId === id) {
-                usuario.imgenPerfil = imgPath;
+                usuario.imagenPerfil = imgPath;
                 break;
             }
         }
@@ -49,7 +49,9 @@ class UsuariosLista {
     }
     //obtener un usuario por el id del User
     getUsuarioByIdUser(id) {
-        return this.lista.find(usuario => usuario.userId === id);
+        return new Promise(resolve => {
+            resolve(this.lista.find(usuario => usuario.userId === id));
+        });
     }
     // Obtener usuario en una sala en particular
     getUsuariosEnSala(sala) {

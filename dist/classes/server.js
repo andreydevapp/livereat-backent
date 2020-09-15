@@ -20,7 +20,16 @@ class Server {
     constructor() {
         this.app = express_1.default();
         //coneccion a base de datos
-        const MONGO_URI = 'mongodb+srv://teytech:Fail0412*@cluster0-hw8sk.mongodb.net/test?retryWrites=true&w=majority';
+        // const MONGO_URI = 'mongodb://localhost/dblivereat';
+        // mongoose.set('useFindAndModify',true);
+        // mongoose.connect(MONGO_URI || process.env.MONGDB_URL, {
+        //     useNewUrlParser:true,
+        //     useCreateIndex:true
+        // })
+        // .then(DB => console.log('db is connected'));
+        //-------------------------- 
+        //coneccion a base de datos
+        const MONGO_URI = 'mongodb+srv://teytech:Fail0412*@cluster0-hw8sk.mongodb.net/test?authSource=admin&replicaSet=Cluster0-shard-0&w=majority&readPreference=primary&appname=MongoDB%20Compass%20Community&retryWrites=true&ssl=true';
         mongoose_1.default.set('useFindAndModify', true);
         mongoose_1.default.connect(MONGO_URI || process.env.MONGDB_URL, {
             useNewUrlParser: true,
@@ -45,6 +54,17 @@ class Server {
             socket.desconectar(cliente, this.io);
             // Configurar usuario
             socket.configurarUsuario(cliente, this.io);
+            // pedidos
+            socket.enviarCantiPedidos(cliente, this.io);
+            //Validar si el usuario esta en linea
+            socket.usuarioEnLinea(cliente, this.io);
+            // Mensajes
+            socket.mensaje(cliente, this.io);
+            //obtener negocios
+            socket.obtenerNegocios(cliente, this.io);
+            //marcar vistos
+            socket.marcarVisto(cliente, this.io);
+            socket.obtenerUsuarios(cliente, this.io);
             /*
             
 

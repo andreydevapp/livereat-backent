@@ -14,13 +14,17 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const usuarios_lista_1 = require("../classes/usuarios-lista");
 const usuario_1 = require("../classes/usuario");
-const userModel_1 = __importDefault(require("../models/userModel"));
+const userModel_1 = __importDefault(require("../modelClient/userModel"));
+const negocio_Model_1 = __importDefault(require("../modelAdmin/negocio.Model"));
+const factura_Model_1 = __importDefault(require("../modelAdmin/factura.Model"));
+const mensajes_Model_1 = __importDefault(require("../modelGlobal/mensajes.Model"));
+const chats_Model_1 = __importDefault(require("../modelGlobal/chats.Model"));
 /*
 import notificacionModel from '../models/notificacionModel';
 
 import userFbModel from '../models/userFbModel';
 import negocioModel from '../models/negocio.Model';
-import mensajeModel from '../models/mensajeModel';
+import mensajesModel from '../models/mensajesModel';
 import chatModel from '../models/chatModel';
 */
 exports.usuariosConectados = new usuarios_lista_1.UsuariosLista();
@@ -32,6 +36,48 @@ exports.conectarCliente = (cliente, io) => __awaiter(void 0, void 0, void 0, fun
 exports.desconectar = (cliente, io) => {
     cliente.on('disconnect', () => __awaiter(void 0, void 0, void 0, function* () {
         console.log('Cliente desconectado');
+        const user = exports.usuariosConectados.getUsuario(cliente.id);
+        if (user.userId !== 'sin-id') {
+            if (user.tipoUsuario === 'cliente') {
+                //buscamos el user
+                yield userModel_1.default.findByIdAndUpdate({ _id: user.userId }, { conectado: 0 });
+                // obtenemos todos los usuarios
+                const users = yield userModel_1.default.find({}, {
+                    _id: 1,
+                    nombre: 1,
+                    email: 1,
+                    imagen: 1,
+                    conectado: 1
+                }).sort({ conectado: -1 });
+                //emitimos que el usuario ya no esta en linea
+                const estado = {
+                    activo: false,
+                    idUser: user.userId
+                };
+                //se le encia los datos a los admin
+                io.emit('usuarios-activos', users);
+                io.emit('get-usuario-en-linea', estado);
+            }
+            else {
+                //buscamos el negocio
+                yield negocio_Model_1.default.findByIdAndUpdate({ _id: user.userId }, { conectado: 0 });
+                const negocios = yield negocio_Model_1.default.find({}, {
+                    _id: 1,
+                    nombreNegocio: 1,
+                    imagen: 1,
+                    conectado: 1
+                }).sort({ conectado: -1 });
+                console.log(negocios);
+                io.emit('negocios-activos', negocios);
+            }
+            const estado = {
+                activo: false,
+                idUser: user.userId
+            };
+            io.emit('get-usuario-en-linea', estado);
+        }
+        console.log(user);
+        console.log(user.userId);
         exports.usuariosConectados.borrarUsuario(cliente.id);
     }));
 };
@@ -51,7 +97,6 @@ exports.configurarUsuario = (cliente, io) => {
                     nombre: 1,
                     email: 1,
                     imagen: 1,
-                    id_fb: 1,
                     conectado: 1
                 }).sort({ conectado: -1 });
                 const estado = {
@@ -67,29 +112,23 @@ exports.configurarUsuario = (cliente, io) => {
             }
         }
         else {
-            /*
             if (user.userId !== 'sin-id') {
-                await negocioModel.update({idUser:user.userId},{$set: {conectado:1}},{multi:true});
-                const negocios:any = await negocioModel.find({},{
-                    _id:1,
-                    nombre:1,
-                    idUser:1,
-                    imagen:1,
-                    conectado:1
-                }).sort({conectado:-1});
-    
+                yield negocio_Model_1.default.update({ _id: user.userId }, { $set: { conectado: 1 } }, { multi: true });
+                const negocios = yield negocio_Model_1.default.find({}, {
+                    _id: 1,
+                    nombreNegocio: 1,
+                    imagen: 1,
+                    conectado: 1
+                }).sort({ conectado: -1 });
                 if (user.userId !== 'sin-id') {
-                    await negocioModel.update({_id:user.userId},{$set: {conectado:1}});
+                    yield negocio_Model_1.default.update({ _id: user.userId }, { $set: { conectado: 1 } });
                 }
-    
-                io.emit('negocios-activos', negocios );
-    
+                io.emit('negocios-activos', negocios);
                 callback({
                     ok: true,
-                    mensaje:cliente.id
+                    idWs: cliente.id
                 });
             }
-            */
         }
         const estado = {
             activo: true,
@@ -98,6 +137,301 @@ exports.configurarUsuario = (cliente, io) => {
         io.emit('get-usuario-en-linea', estado);
     }));
 };
+//pedidos
+exports.enviarCantiPedidos = (cliente, io) => {
+    cliente.on('enviar-cantidad-pedido', (payload, callback) => __awaiter(void 0, void 0, void 0, function* () {
+        const userEnLinea = yield exports.usuariosConectados.getUsuarioByIdUser(payload.idNegocio);
+        if (userEnLinea) {
+            const cantiFacturas = yield factura_Model_1.default.find({ idNegocio: payload.idNegocio }).count();
+            const noVistos = yield factura_Model_1.default.find({ idNegocio: payload.idNegocio, visto: false }).count();
+            io.to(userEnLinea.id).emit('obtener-cantidad-pedidos', { res: 'facturas', cantidad: cantiFacturas, noVistos });
+        }
+    }));
+};
+exports.pedidoVisto = (cliente, io) => {
+    cliente.on('pedido-visto', (payload, callback) => __awaiter(void 0, void 0, void 0, function* () {
+    }));
+};
+//
+//Negocios conectados
+exports.obtenerNegocios = (cliente, io) => __awaiter(void 0, void 0, void 0, function* () {
+    //obtenemos todos los negocios
+    cliente.on('obtener-negocios', () => __awaiter(void 0, void 0, void 0, function* () {
+        console.log('imprimiendo');
+        const negocios = yield negocio_Model_1.default.find({}, {
+            _id: 1,
+            nombreNegocio: 1,
+            imagen: 1,
+            conectado: 1
+        }).sort({ conectado: -1 });
+        //buscamos todos los usuarios activos en la db
+        console.log(negocios);
+        io.to(cliente.id).emit('negocios-activos', negocios);
+    }));
+});
+//Clientes conectados
+exports.obtenerUsuarios = (cliente, io) => __awaiter(void 0, void 0, void 0, function* () {
+    cliente.on('obtener-usuarios', () => __awaiter(void 0, void 0, void 0, function* () {
+        console.log('imprimiendo');
+        //buscamos todos los usuarios activos en la db
+        const users = yield userModel_1.default.find({}, {
+            _id: 1,
+            nombre: 1,
+            email: 1,
+            imagen: 1,
+            conectado: 1
+        }).sort({ conectado: -1 });
+        console.log(users);
+        io.to(cliente.id).emit('usuarios-activos', users);
+    }));
+});
+exports.usuarioEnLinea = (cliente, io) => {
+    cliente.on('emitir-esta-en-linea', (payload, callback) => __awaiter(void 0, void 0, void 0, function* () {
+        const user = exports.usuariosConectados.getUsuarioByIdUser(payload.id);
+        //si exite el usuario es que ya fue configurado por lo que el usuario esta en linea
+        console.log('esta en linea');
+        console.log('usuario', user);
+        if (user !== undefined) {
+            const estado = {
+                activo: true,
+                idUser: payload.id
+            };
+            io.to(cliente.id).emit('get-usuario-en-linea', estado);
+        }
+        else {
+            const estado = {
+                activo: false,
+                idUser: payload.id
+            };
+            io.to(cliente.id).emit('get-usuario-en-linea', estado);
+        }
+    }));
+};
+exports.mensaje = (cliente, io) => {
+    cliente.on('enviar-mensaje', (payload, callback) => __awaiter(void 0, void 0, void 0, function* () {
+        console.log('entre a get mensjaes');
+        console.log(payload.myId);
+        console.log(payload.otherId);
+        //primero se valida al usuario web socket al que se le va a enviar el mensaje
+        const userWS = yield exports.usuariosConectados.getUsuarioByIdUser(payload.otherId);
+        console.log("userWS.id", userWS);
+        console.log("userWS.id", userWS.id);
+        console.log("cliente.id", cliente.id);
+        //primero se valida si el chat con esta persona esta creado
+        //en el request tiene que venir el id de los dos usuario
+        //myId
+        const myId = payload.myId;
+        //otherId
+        const otherId = payload.otherId;
+        const nombreEmisor = payload.miNombre;
+        const nombreReceptor = payload.otherNombre;
+        const imagenEmisor = payload.miImagen;
+        const imagenReceptor = payload.otherImagen;
+        //creo el arreglo
+        let modelPayload = {
+            idUser: myId,
+            chatCon: otherId,
+            nombre: nombreEmisor,
+            imagen: imagenEmisor,
+            ultimoMensaje: payload.mensaje
+        };
+        const modelPayloadMsm = {
+            idUser: myId,
+            chatCon: otherId,
+            de: myId,
+            para: otherId,
+            body: payload.mensaje,
+            remitenteOriginal: myId,
+            imagenConsulta: payload.imagenConsulta
+        };
+        //valido si tengo un chat con eta persona
+        const existe = yield chats_Model_1.default.findOne({ idUser: myId, chatCon: otherId });
+        if (!existe) {
+            //ahora hay que validar si el otro usuario tiene un chat conmigo porque los chats se pueden eliminar
+            const existeChat = yield chats_Model_1.default.findOne({ idUser: otherId, chatCon: myId });
+            if (!existeChat) {
+                //ninguno de los dos tiene chat por lo que los creo y guardo los datos
+                //el que envia el mensaje
+                const myChat = new chats_Model_1.default(modelPayload);
+                yield myChat.save();
+                //guardo el mensaje par el emisor
+                const emisorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield emisorMensaje.save();
+                //guardo el chat para el receptor
+                modelPayload.idUser = otherId;
+                modelPayload.chatCon = myId;
+                modelPayload.nombre = nombreReceptor;
+                modelPayload.imagen = imagenReceptor;
+                const otherChat = new chats_Model_1.default(modelPayload);
+                yield otherChat.save();
+                // guardo el mensaje para el receptor
+                modelPayloadMsm.idUser = otherId;
+                modelPayloadMsm.chatCon = myId;
+                const receptorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield receptorMensaje.save();
+                //listo
+                console.log('ninguno de los dos usuarios tenia un chat');
+                const mensajes = yield mensajes_Model_1.default.find({ idUser: payload.myId, chatCon: payload.otherId }).sort({ createAt: 1 });
+                //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
+                const chatUser = yield chats_Model_1.default.find({ idUser: otherId, chatCon: myId });
+                chatUser[0].mensajesSinVer += 1;
+                console.log(chatUser[0].mensajesSinVer);
+                yield chats_Model_1.default.update({ idUser: myId, chatCon: otherId }, {
+                    mensajesSinVer: chatUser[0].mensajesSinVer
+                });
+                const chatsReceptor = yield chats_Model_1.default.find({ chatCon: otherId }).sort({ createAt: -1 });
+                const chatsEmisor = yield chats_Model_1.default.find({ chatCon: myId }).sort({ createAt: -1 });
+                console.log({ res: chatsReceptor[0].mensajesSinVer });
+                console.log("userWS.id", userWS.id);
+                console.log("cliente.id", cliente.id);
+                io.to(userWS.id).emit('obtener-chats-receptor-pagina-Home', { res: chatsReceptor[0].mensajesSinVer });
+                io.to(userWS.id).emit('obtener-chats-receptor', chatsReceptor);
+                io.to(cliente.id).emit('obtener-chats-emisor', chatsEmisor);
+                io.to(userWS.id).emit('recibir-mensaje', mensajes);
+                io.to(cliente.id).emit('recibir-mensaje', mensajes);
+                callback({
+                    ok: true,
+                });
+            }
+            else {
+                //si yo no tengo chat creado pero el otro usuario si tiene uno conmigo entonces guardo el mio y el del  otro lo modifico
+                //se guarda el chat del emisor
+                const myChat = new chats_Model_1.default(modelPayload);
+                yield myChat.save();
+                const emisorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield emisorMensaje.save();
+                //modifico el chat del receptor
+                yield chats_Model_1.default.update({ idUser: otherId }, {
+                    createAt: Date.now(),
+                    ultimoMensaje: payload.mensaje
+                });
+                // guardo el mensaje para el receptor
+                modelPayloadMsm.idUser = otherId;
+                modelPayloadMsm.chatCon = myId;
+                const receptorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield receptorMensaje.save();
+                console.log('yo no tenia un chat creado pero el otro si');
+                const mensajes = yield mensajes_Model_1.default.find({ idUser: payload.myId, chatCon: payload.otherId }).sort({ createAt: 1 });
+                //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
+                const chatUser = yield chats_Model_1.default.find({ idUser: otherId, chatCon: myId });
+                chatUser[0].mensajesSinVer += 1;
+                yield chats_Model_1.default.update({ idUser: myId, chatCon: otherId }, {
+                    mensajesSinVer: chatUser[0].mensajesSinVer
+                });
+                const chatsReceptor = yield chats_Model_1.default.find({ chatCon: otherId }).sort({ createAt: -1 });
+                const chatsEmisor = yield chats_Model_1.default.find({ chatCon: myId }).sort({ createAt: -1 });
+                io.to(userWS.id).emit('obtener-chats-receptor', chatsReceptor);
+                io.to(cliente.id).emit('obtener-chats-emisor', chatsEmisor);
+                io.to(userWS.id).emit('recibir-mensaje', mensajes);
+                callback({
+                    ok: true,
+                });
+            }
+        }
+        else {
+            //ya tengo un chat creado con el otro usuario
+            //ahora hay que validar si el otro usuario tiene un chat conmigo porque los chats se pueden eliminar
+            const existeChat = yield chats_Model_1.default.findOne({ idUser: otherId, chatCon: myId });
+            if (!existeChat) {
+                //yo tengo un chat con el otro usuario pero el conmigo no
+                //modifico mis datos
+                console.log(myId);
+                yield chats_Model_1.default.update({ idUser: myId }, {
+                    createAt: Date.now(),
+                    ultimoMensaje: payload.mensaje
+                });
+                const emisorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield emisorMensaje.save();
+                //guardo los datos del usuario receptor
+                modelPayload.idUser = otherId;
+                modelPayload.chatCon = myId;
+                modelPayload.nombre = nombreReceptor;
+                modelPayload.imagen = imagenReceptor;
+                const otherChat = new chats_Model_1.default(modelPayload);
+                yield otherChat.save();
+                // guardo el mensaje para el receptor
+                modelPayloadMsm.idUser = otherId;
+                modelPayloadMsm.chatCon = myId;
+                const receptorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield receptorMensaje.save();
+                //listo
+                console.log('yo tengo un chat creado pero el otro no');
+                const mensajes = yield mensajes_Model_1.default.find({ idUser: payload.myId, chatCon: payload.otherId }).sort({ createAt: 1 });
+                //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
+                const chatUser = yield chats_Model_1.default.find({ idUser: otherId, chatCon: myId });
+                chatUser[0].mensajesSinVer += 1;
+                yield chats_Model_1.default.update({ idUser: myId, chatCon: otherId }, {
+                    mensajesSinVer: chatUser[0].mensajesSinVer
+                });
+                const chatsReceptor = yield chats_Model_1.default.find({ chatCon: otherId }).sort({ createAt: -1 });
+                const chatsEmisor = yield chats_Model_1.default.find({ chatCon: myId }).sort({ createAt: -1 });
+                io.to(userWS.id).emit('obtener-chats-receptor', chatsReceptor);
+                io.to(cliente.id).emit('obtener-chats-emisor', chatsEmisor);
+                io.to(userWS.id).emit('recibir-mensaje', mensajes);
+                callback({
+                    ok: true,
+                });
+            }
+            else {
+                //si se llega hasta aqui significa que los dos tenemos un chat entre nosotros por lo que se le modifica     a los dos
+                //modifico mi chat
+                yield chats_Model_1.default.update({ idUser: myId, chatCon: otherId }, {
+                    createAt: Date.now(),
+                    ultimoMensaje: payload.mensaje
+                });
+                //guardo el mensaje del el emisor
+                const emisorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield emisorMensaje.save();
+                //modifico el otro chat
+                yield chats_Model_1.default.update({ idUser: otherId, chatCon: myId }, {
+                    createAt: Date.now(),
+                    ultimoMensaje: payload.mensaje
+                });
+                // guardo el mensaje para el receptor
+                modelPayloadMsm.idUser = otherId;
+                modelPayloadMsm.chatCon = myId;
+                const receptorMensaje = new mensajes_Model_1.default(modelPayloadMsm);
+                yield receptorMensaje.save();
+                //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
+                const chatUser = yield chats_Model_1.default.find({ idUser: myId, chatCon: otherId });
+                chatUser[0].mensajesSinVer += 1;
+                console.log(chatUser[0].mensajesSinVer);
+                yield chats_Model_1.default.update({ idUser: myId, chatCon: otherId }, {
+                    mensajesSinVer: chatUser[0].mensajesSinVer
+                });
+                //listo
+                console.log('los dos tenemos un chat creado');
+                console.log(otherId);
+                const mensajes = yield mensajes_Model_1.default.find({ idUser: myId, chatCon: otherId }).sort({ createAt: 1 });
+                const chatsReceptor = yield chats_Model_1.default.find({ chatCon: otherId }).sort({ createAt: -1 });
+                const chatsEmisor = yield chats_Model_1.default.find({ chatCon: myId }).sort({ createAt: -1 });
+                console.log("userWS.id", userWS.id);
+                console.log("cliente.id", cliente.id);
+                io.to(userWS.id).emit('obtener-chats-receptor-pagina-Home', { res: chatsReceptor[0].mensajesSinVer });
+                io.to(userWS.id).emit('obtener-chats-receptor', chatsReceptor);
+                io.to(cliente.id).emit('obtener-chats-emisor', chatsEmisor);
+                io.to(userWS.id).emit('recibir-mensaje', mensajes);
+                io.to(cliente.id).emit('recibir-mensaje', mensajes);
+                callback({
+                    ok: true,
+                });
+            }
+        }
+    }));
+};
+// Obtener Usuarios
+exports.marcarVisto = (cliente, io) => __awaiter(void 0, void 0, void 0, function* () {
+    cliente.on('marcar-visto', (payload) => __awaiter(void 0, void 0, void 0, function* () {
+        console.log('imprimiendo vistos');
+        //buscamos todos los usuarios activos en la db
+        const userWS = yield exports.usuariosConectados.getUsuarioByIdUser(payload.otherId);
+        console.log(userWS);
+        yield mensajes_Model_1.default.update({ idUser: payload.otherId, chatCon: payload.myId }, { $set: { visto: true } }, { multi: true });
+        const mensajes = yield mensajes_Model_1.default.find({ idUser: payload.otherId, chatCon: payload.myId }).sort({ createAt: 1 });
+        io.to(userWS.id).emit('obtener-visto', mensajes);
+    }));
+});
+///Mensajes
 /*
 export const desconectar = ( cliente: Socket, io: socketIO.Server ) => {
 
@@ -444,7 +778,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 await myChat.save();
 
                 //guardo el mensaje par el emisor
-                const emisorMensaje =  new mensajeModel(modelPayloadMsm);
+                const emisorMensaje =  new mensajesModel(modelPayloadMsm);
                 await emisorMensaje.save();
 
 
@@ -461,12 +795,12 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 // guardo el mensaje para el receptor
                 modelPayloadMsm.idUser = otherId;
                 modelPayloadMsm.chatCon = myId;
-                const receptorMensaje =  new mensajeModel(modelPayloadMsm);
+                const receptorMensaje =  new mensajesModel(modelPayloadMsm);
                 await receptorMensaje.save();
 
                 //listo
                 console.log('ninguno de los dos usuarios tenia un chat');
-                const mensajes = await mensajeModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
+                const mensajes = await mensajesModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
 
                 
                 //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
@@ -502,7 +836,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 const myChat = new chatModel(modelPayload);
                 await myChat.save();
 
-                const emisorMensaje =  new mensajeModel(modelPayloadMsm);
+                const emisorMensaje =  new mensajesModel(modelPayloadMsm);
                 await emisorMensaje.save();
 
                 //modifico el chat del receptor
@@ -516,11 +850,11 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 // guardo el mensaje para el receptor
                 modelPayloadMsm.idUser = otherId;
                 modelPayloadMsm.chatCon = myId;
-                const receptorMensaje =  new mensajeModel(modelPayloadMsm);
+                const receptorMensaje =  new mensajesModel(modelPayloadMsm);
                 await receptorMensaje.save();
 
                 console.log('yo no tenia un chat creado pero el otro si');
-                const mensajes = await mensajeModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
+                const mensajes = await mensajesModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
 
                 //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
                 const chatUser:any = await chatModel.find({idUser:otherId,chatCon:myId});
@@ -562,7 +896,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                     }
                 );
 
-                const emisorMensaje =  new mensajeModel(modelPayloadMsm);
+                const emisorMensaje =  new mensajesModel(modelPayloadMsm);
                 await emisorMensaje.save();
 
 
@@ -579,12 +913,12 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 // guardo el mensaje para el receptor
                 modelPayloadMsm.idUser = otherId;
                 modelPayloadMsm.chatCon = myId;
-                const receptorMensaje =  new mensajeModel(modelPayloadMsm);
+                const receptorMensaje =  new mensajesModel(modelPayloadMsm);
                 await receptorMensaje.save();
 
                 //listo
                 console.log('yo tengo un chat creado pero el otro no');
-                const mensajes = await mensajeModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
+                const mensajes = await mensajesModel.find({idUser:payload.myId,chatCon:payload.otherId}).sort({createAt:1}   );
 
                 //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
                 const chatUser:any = await chatModel.find({idUser:otherId,chatCon:myId});
@@ -617,7 +951,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 });
 
                  //guardo el mensaje del el emisor
-                 const emisorMensaje =  new mensajeModel(modelPayloadMsm);
+                 const emisorMensaje =  new mensajesModel(modelPayloadMsm);
                  await emisorMensaje.save();
 
                 //modifico el otro chat
@@ -631,7 +965,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 // guardo el mensaje para el receptor
                 modelPayloadMsm.idUser = otherId;
                 modelPayloadMsm.chatCon = myId;
-                const receptorMensaje =  new mensajeModel(modelPayloadMsm);
+                const receptorMensaje =  new mensajesModel(modelPayloadMsm);
                 await receptorMensaje.save();
 
                 //sumamos la cantidad de mensajes sin ever del otro usuario en el chatModel
@@ -648,7 +982,7 @@ export const mensaje = ( cliente: Socket, io: socketIO.Server ) => {
                 //listo
                 console.log('los dos tenemos un chat creado');
                 console.log(otherId);
-                const mensajes = await mensajeModel.find({idUser:myId,chatCon:otherId}).sort({createAt:1}   );
+                const mensajes = await mensajesModel.find({idUser:myId,chatCon:otherId}).sort({createAt:1}   );
 
                 const chatsReceptor:any = await chatModel.find({chatCon:otherId}).sort({createAt:-1});
                 const chatsEmisor = await chatModel.find({chatCon:myId}).sort({createAt:-1});
@@ -682,9 +1016,9 @@ export const marcarVisto = async ( cliente: Socket, io: socketIO.Server )  => {
         
         const visto = {visto:true};
 
-        await mensajeModel.update({idUser:payload.otherId,chatCon:payload.myId},{$set: {visto:true}},{multi:true});
+        await mensajesModel.update({idUser:payload.otherId,chatCon:payload.myId},{$set: {visto:true}},{multi:true});
 
-        const mensajes = await mensajeModel.find({idUser:payload.otherId,chatCon:payload.myId}).sort({createAt:1}   );
+        const mensajes = await mensajesModel.find({idUser:payload.otherId,chatCon:payload.myId}).sort({createAt:1}   );
 
         io.to( userWS.id ).emit('obtener-visto', mensajes  );
         
